@@ -86,7 +86,7 @@ This takes an Alpine rootfs (unmodified) and add the files under
 ## Minimum kernel config
 
 This section describes how to build a minimum kernel that can be used
-with `microvm`. You may see this as "Linux kernel the hard way" :smiley:
+with `microvm`.
 
 ```
 builddir=/tmp/$USER/minivm
