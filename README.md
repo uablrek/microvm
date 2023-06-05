@@ -40,6 +40,24 @@ mount -t proc proc /proc
 ```
 
 
+## Networking
+
+A `tun/tap` device is used since [firecracker only supports that](
+https://github.com/firecracker-microvm/firecracker/blob/main/docs/network-setup.md).
+The tap device (and an optional bridge) must be created before the vm
+is started. Then the `--tap=` option can be specified to the run command.
+
+```
+sudo ./microvm.sh mktap --user=$USER --adr=172.20.0.1/24 tap0
+./microvm.sh run_microvm --init=/bin/sh --tap=tap0 /tmp/alpine.img
+# In the console
+ip link    # You should see a "lo" and "eth0" interface (both DOWN)
+```
+
+This will *not* setup any networking in the guest.
+
+
+
 ## Minimum kernel config
 
 This section describes how to build a minimum kernel that can be used

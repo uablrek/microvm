@@ -51,13 +51,17 @@ cmd_env() {
 	test -n "$__kobj" || __kobj=$MICROVM_WORKSPACE/obj-$__kver-$__ksetup
 	test -n "$__fcver" || __fcver=v1.3.1
 	fc=$MICROVM_WORKSPACE/release-$__fcver-x86_64/firecracker-$__fcver-x86_64
+	if test -z "$__fccfg"; then
+		__fccfg=$dir/config/fc-$__ksetup
+		test -r $__fccfg || __fccfg=$dir/config/vm_config.json
+	fi
 	if test -z "$DISKIM"; then
 		DISKIM=$(find $MICROVM_WORKSPACE -name diskim.sh)
 		test -n "$DISKIM" || log "WARNING: diskim not installed"
 	fi
 
 	if test "$cmd" = "env"; then
-		local opts="kver|kcfg|kobj|kdir|fcver|kernel"
+		local opts="kver|kcfg|kobj|kdir|fcver|kernel|ksetup|fccfg"
 		set | grep -E "^(__($opts)|MICROVM_.*|ARCHIVE|DISKIM|fc)=" | sort
 		return 0
 	fi
@@ -113,6 +117,31 @@ cmd_docker_export() {
     docker export $c
     docker rm $c > /dev/null 2>&1
 }
+##   mktap [--bridge=] [--adr=] <tap>
+##     Create a network tun/tap device.  The tun/tap device can
+##     optionally be attached to a bridge. If "sudo" is required
+##     you must specify "--user=$USER"
+cmd_mktap() {
+	test -n "$1" || die "Parameter missing"
+	if ip link show dev $1 > /dev/null 2>&1; then
+		log "Device exists [$1]"
+		return 0
+	fi
+	if test -n "$__bridge"; then
+		ip link show dev $__bridge > /dev/null 2>&1 \
+			|| die "Bridge does not exist [$__bridge]"
+	fi
+	test -n "$__user" || __user=$USER
+	ip tuntap add $1 mode tap user $__user || die "Create tap"
+	ip link set up $1
+	if test -n "$__bridge"; then
+		ip link set dev $1 master $__bridge || die "Attach to bridge"
+	elif test -n "$__adr"; then
+		local opt
+		echo "$__adr" | grep -q : && opt=-6
+		ip $opt addr add $__adr dev $1 || die "Set address [$__adr]"
+	fi
+}
 ##   kernel_build [--menuconfig]
 ##     Build the microvm kernel
 cmd_kernel_build() {
@@ -130,7 +159,7 @@ cmd_mkimage() {
 	cmd_docker_export $__docker_image > $tmp/image.tar
 	$DISKIM mkimage --size=$__size --format=raw --image=$1 $tmp/image.tar || die FAILED
 }
-##   run_microvm [--init=/init] [--mem=128] <image>
+##   run_microvm [--init=/init] [--mem=128] [--tap=] <image>
 ##     Run a qemu microvm
 cmd_run_microvm() {
 	cmd_env
@@ -140,15 +169,29 @@ cmd_run_microvm() {
 	shift
 	test -n "$__init" || __init=/init
 	test -n "$__mem" || __mem=128
-	local kvmboot="-smp 2 -k sv -m $__mem"
-    kvmboot="$kvmboot -drive file=$image,if=none,id=drive0,format=raw"
-    kvmboot="$kvmboot -device virtio-blk-device,drive=drive0"
+	local opt="-smp 2 -k sv -m $__mem"
+    opt="$opt -drive file=$image,if=none,id=drive0,format=raw"
+    opt="$opt -device virtio-blk-device,drive=drive0"
+	if test -n "$__tap"; then
+		setmac
+		opt="$opt -netdev tap,id=$__tap,script=no,ifname=$__tap"
+		opt="$opt -device virtio-net-device,netdev=$__tap,mac=$mac"
+	fi
     exec qemu-system-x86_64-microvm -enable-kvm -M microvm,acpi=off \
 		-cpu host -nodefaults -no-user-config \
-        -serial stdio -kernel $__kernel $kvmboot \
+        -serial stdio -kernel $__kernel $opt \
         -append "console=ttyS0 root=/dev/vda init=$__init rw $__append"
 }
-##   run_fc [--init=/init] [--mem=128] <image>
+setmac() {
+	local b0=$(echo $__tap | tr -dc '[0-9]')
+	if test -n "$b0"; then
+		b0=$(printf "%02d" $b0)
+	else
+		b0=00
+	fi
+	mac=00:00:00:01:00:$b0
+}
+##   run_fc [--init=/init] [--mem=128] [--tap=] <image>
 ##     Run a firecracker vm
 cmd_run_fc() {
 	cmd_env
@@ -162,7 +205,7 @@ cmd_run_fc() {
 	sed -e "s,vmlinux.bin,$kernel," -e "s,bionic.rootfs.ext4,$image," \
 		-e "s,/init,$__init," \
 		-e "s,\"mem_size_mib\": 1024,\"mem_size_mib\": $__mem," \
-		< $dir/config/vm_config.json > $tmp/fc-config.json
+		< $__fccfg > $tmp/fc-config.json
 	$fc --no-api --config-file $tmp/fc-config.json
 }
 
