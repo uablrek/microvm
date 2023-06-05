@@ -129,7 +129,7 @@ cmd_mkimage() {
 	cmd_docker_export $__docker_image > $tmp/image.tar
 	$DISKIM mkimage --size=$__size --format=raw --image=$1 $tmp/image.tar || die FAILED
 }
-##   run_microvm [--cmd=/sbin/init] <image>
+##   run_microvm [--init=/init] [--mem=128] <image>
 ##     Run a qemu microvm
 cmd_run_microvm() {
 	cmd_env
@@ -137,31 +137,32 @@ cmd_run_microvm() {
 	test -r "$1" || die "Not readable [$1]"
 	local image=$1
 	shift
-	test -n "$__cmd" || __cmd=/sbin/init
-	test -n "$__mem" || __mem=1024
+	test -n "$__init" || __init=/init
+	test -n "$__mem" || __mem=128
 	local kvmboot="-smp 2 -k sv -m $__mem"
     kvmboot="$kvmboot -drive file=$image,if=none,id=drive0,format=raw"
     kvmboot="$kvmboot -device virtio-blk-device,drive=drive0"
     exec qemu-system-x86_64-microvm -enable-kvm -M microvm,acpi=off \
 		-cpu host -nodefaults -no-user-config \
         -serial stdio -kernel $__kernel $kvmboot \
-        -append "console=ttyS0 root=/dev/vda init=$__cmd rw $__append"
+        -append "console=ttyS0 root=/dev/vda init=$__init rw $__append"
 }
-##   run_fc [--cmd=/sbin/init] <image>
+##   run_fc [--init=/init] [--mem=128] <image>
 ##     Run a firecracker vm
 cmd_run_fc() {
 	cmd_env
 	test -n "$1" || die "Parameter missing"
 	test -r "$1" || die "Not readable [$1]"
 	local image=$1
-	test -n "$__cmd" || __cmd=/sbin/init
-	test -n "$__mem" || __mem=1024
+	test -n "$__init" || __init=/init
+	test -n "$__mem" || __mem=128
 	mkdir -p $tmp
 	local kernel=$__kobj/vmlinux
 	sed -e "s,vmlinux.bin,$kernel," -e "s,bionic.rootfs.ext4,$image," \
-		-e "s,/init,$__cmd," -e "s,1024,$__mem," \
-		< $dir/config/fc_config.json > $tmp/fc_config.json
-	$fc --no-api --config-file $tmp/fc_config.json
+		-e "s,/init,$__init," \
+		-e "s,\"mem_size_mib\": 1024,\"mem_size_mib\": $__mem," \
+		< $dir/config/vm_config.json > $tmp/fc-config.json
+	$fc --no-api --config-file $tmp/fc-config.json
 }
 
 

@@ -31,16 +31,16 @@ with [diskim]().
 ./microvm.sh kernel_build
 docker pull alpine:latest
 ./microvm.sh mkimage --docker-image=alpine:latest /tmp/alpine.img
-./microvm.sh run_microvm --cmd=/bin/sh /tmp/alpine.img
+./microvm.sh run_microvm --init=/bin/sh /tmp/alpine.img
 # (exit with ctrl-C)
-./microvm.sh run_fc --cmd=/bin/sh /tmp/alpine.img
+./microvm.sh run_fc --init=/bin/sh /tmp/alpine.img
 # (exit with "exit")
 # The /proc file system is needed for many things. In the console:
 mount -t proc proc /proc
 ```
 
 
-## Kernel config
+## Minimum kernel config
 
 This section describes how to build a minimum kernel that can be used
 with `microvm`. You may see this as "Linux kernel the hard way" :smiley:
@@ -90,10 +90,13 @@ File systems >
 Test it:
 ```
 ls -lh $__kernel    # (1.9M at the time of writing)
-./microvm.sh run_microvm --cmd=/bin/sh /tmp/alpine.img
+./microvm.sh run_microvm --mem=32 --init=/bin/sh /tmp/alpine.img
 # (exit with ctrl-C)
-./microvm.sh run_fc --cmd=/bin/sh /tmp/alpine.img
+./microvm.sh run_fc --mem=32 --init=/bin/sh /tmp/alpine.img
 # (exit with "exit")
+# In the console:
+mount -t proc proc /proc
+free -h
 ```
 
 If you really want to learn about Linux kernel configuration, this is
