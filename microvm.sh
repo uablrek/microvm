@@ -206,6 +206,18 @@ cmd_run_fc() {
 		-e "s,/init,$__init," \
 		-e "s,\"mem_size_mib\": 1024,\"mem_size_mib\": $__mem," \
 		< $__fccfg > $tmp/fc-config.json
+	if test -n "$__tap"; then
+		setmac
+		cat > $tmp/addnet <<EOF
+."network-interfaces" += [{
+  "iface_id": "eth0",
+  "guest_mac": "$mac",
+  "host_dev_name": "$__tap"
+}]
+EOF
+		jq -f $tmp/addnet $tmp/fc-config.json > $tmp/fc-config-net.json
+		mv -f $tmp/fc-config-net.json $tmp/fc-config.json
+	fi
 	$fc --no-api --config-file $tmp/fc-config.json
 }
 

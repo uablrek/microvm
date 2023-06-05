@@ -12,7 +12,7 @@ https://github.com/firecracker-microvm/firecracker) and
 
 ## Setup and the microvm.sh script
 
-Prerequisites: `docker` and `kvm/qemu` are installed.
+Prerequisites: `docker`, `jq` and `kvm/qemu` are installed.
 
 Most things are done using the `microvm.sh` script.
 ```
@@ -50,6 +50,8 @@ is started. Then the `--tap=` option can be specified to the run command.
 ```
 sudo ./microvm.sh mktap --user=$USER --adr=172.20.0.1/24 tap0
 ./microvm.sh run_microvm --init=/bin/sh --tap=tap0 /tmp/alpine.img
+# Or:
+./microvm.sh run_fc --init=/bin/sh --tap=tap0 /tmp/alpine.img
 # In the console
 ip link    # You should see a "lo" and "eth0" interface (both DOWN)
 ```
