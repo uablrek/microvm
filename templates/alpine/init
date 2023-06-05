@@ -1,0 +1,7 @@
+#! /bin/sh
+mount -t sysfs sysfs /sys
+mount -t proc procfs /proc
+mdev -s
+passwd -d root
+exec /sbin/init
+

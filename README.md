@@ -30,14 +30,13 @@ with [diskim](https://github.com/lgekman/diskim).
 
 ```
 ./microvm.sh kernel_build
-./microvm.sh mkimage /tmp/alpine.img
+./microvm.sh mkimage /tmp/alpine.img ./templates/alpine
 ls -slh /tmp/alpine.img   # This is a "sparse" file, not really 2G
-./microvm.sh run_microvm --init=/bin/sh /tmp/alpine.img
+# Start and login as "root" (no passwd)
+./microvm.sh run_microvm /tmp/alpine.img
 # (exit with ctrl-C)
-./microvm.sh run_fc --init=/bin/sh /tmp/alpine.img
-# (exit with "exit")
-# The /proc file system is needed for many things. In the console:
-mount -t proc proc /proc
+./microvm.sh run_fc /tmp/alpine.img
+# (exit with "kill 1")
 ```
 
 
@@ -50,9 +49,9 @@ is started. Then the `--tap=` option can be specified to the run command.
 
 ```
 sudo ./microvm.sh mktap --user=$USER --adr=172.20.0.1/24 tap0
-./microvm.sh run_microvm --init=/bin/sh --tap=tap0 /tmp/alpine.img
+./microvm.sh run_microvm --tap=tap0 /tmp/alpine.img
 # Or:
-./microvm.sh run_fc --init=/bin/sh --tap=tap0 /tmp/alpine.img
+./microvm.sh run_fc --tap=tap0 /tmp/alpine.img
 # In the console
 ip link    # You should see a "lo" and "eth0" interface (both DOWN)
 ```
@@ -67,6 +66,20 @@ ip addr add 172.20.0.2/24 dev eth0
 ping -c1 -W1 172.20.0.1     # Ping the host
 ```
 
+
+## The rootfs
+
+You can build you own customized root file system by setting the
+`--rootfsar=` option and add "overlays", i.e. archives or directories
+that will be copied to your root file system. The `rootfsar` must be
+in `$HOME/Downloads` or `$ARCHIVE`.
+
+```
+./microvm.sh mkimage --rootfsar=alpine-minirootfs-3.18.0-x86_64.tar.gz /tmp/alpine.img ./templates/alpine
+```
+
+This takes an Alpine rootfs (unmodified) and add the files under
+`./templates/alpine`.
 
 
 
@@ -120,13 +133,10 @@ File systems >
 Test it:
 ```
 ls -lh $__kernel    # (1.9M at the time of writing)
-./microvm.sh run_microvm --mem=32 --init=/bin/sh /tmp/alpine.img
+./microvm.sh run_microvm --mem=32 /tmp/alpine.img
 # (exit with ctrl-C)
-./microvm.sh run_fc --mem=32 --init=/bin/sh /tmp/alpine.img
-# (exit with "exit")
-# In the console:
-mount -t proc proc /proc
-free -h
+./microvm.sh run_fc --mem=32 /tmp/alpine.img
+# (exit with "kill 1")
 ```
 
 If you really want to learn about Linux kernel configuration, this is

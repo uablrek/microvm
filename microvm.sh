@@ -138,6 +138,7 @@ cmd_mkimage() {
 	local image=$1
 	shift
 	findf $__rootfsar || die "Can's find rootfs archive [$__rootfsar]"
+	unset __kernel
 	$DISKIM mkimage --size=$__size --format=raw --image=$image $f $@ || die FAILED
 }
 ##   mktap [--bridge=] [--adr=] [--user=$USER] <tap>
