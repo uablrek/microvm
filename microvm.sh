@@ -46,7 +46,7 @@ cmd_env() {
 	test -n "$__kver" || __kver=linux-6.3.4
     test -n "$__kdir" || __kdir=$MICROVM_WORKSPACE/$__kver
 	test -n "$__kcfg" || __kcfg=$dir/config/$__kver
-	test -n "$__kbin" || __kbin=$MICROVM_WORKSPACE/bzImage-$__kver
+	test -n "$__kernel" || __kernel=$MICROVM_WORKSPACE/bzImage-$__kver
 	test -n "$__kobj" || __kobj=$MICROVM_WORKSPACE/obj-$__kver
 	test -n "$__fcver" || __fcver=v1.3.1
 	fc=$MICROVM_WORKSPACE/release-$__fcver-x86_64/firecracker-$__fcver-x86_64
@@ -54,10 +54,9 @@ cmd_env() {
 		DISKIM=$(find $MICROVM_WORKSPACE -name diskim.sh)
 		test -n "$DISKIM" || log "WARNING: diskim not installed"
 	fi
-	export __kver __kdir __kcfg __kbin __kobj 
 
 	if test "$cmd" = "env"; then
-		local opts="kver|kcfg|kernel|kobj|kdir|fcver"
+		local opts="kver|kcfg|kobj|kdir|fcver|kernel"
 		set | grep -E "^(__($opts)|MICROVM_.*|ARCHIVE|DISKIM|fc)=" | sort
 		return 0
 	fi
@@ -86,6 +85,7 @@ cmd_setup() {
 	if test -d $__kdir; then
 		log "Already installed [$__kdir]"
 	else
+		export __kver __kdir
 		$DISKIM kernel_download || die "FAILED"
 		$DISKIM kernel_unpack  || die "FAILED"
 	fi
@@ -94,12 +94,13 @@ cmd_setup() {
 		log "Already installed [$fc]"
 	else
 		local ar=firecracker-$__fcver-x86_64.tgz
+		log "Installing $ar ..."
 		if ! findf $ar; then
 			curl -L -o $ARCHIVE/$ar https://github.com/firecracker-microvm/firecracker/releases/download/$__fcver/$ar || die "FAILED: Download firecracker"
 			findf $ar || die "FAILED: firecracker not found"
 		fi
 		tar -C $MICROVM_WORKSPACE -xf $f || die "FAILED: tar -xf $f"
-		test -c $fc || die "FAILED: Install firecracker"
+		test -x $fc || die "FAILED: Install firecracker"
 	fi
 }
 ##   docker_export <image>
@@ -115,6 +116,7 @@ cmd_docker_export() {
 ##     Build the microvm kernel
 cmd_kernel_build() {
 	cmd_env
+	export __kver __kdir __kcfg __kobj __kernel
 	$DISKIM kernel_build --menuconfig=$__menuconfig
 }
 ##   mkimage [--size=2G] --docker-image=image <output-file>
@@ -142,7 +144,7 @@ cmd_run_microvm() {
     kvmboot="$kvmboot -device virtio-blk-device,drive=drive0"
     exec qemu-system-x86_64-microvm -enable-kvm -M microvm,acpi=off \
 		-cpu host -nodefaults -no-user-config \
-        -serial stdio -kernel $__kbin $kvmboot \
+        -serial stdio -kernel $__kernel $kvmboot \
         -append "console=ttyS0 root=/dev/vda init=$__cmd rw $__append"
 }
 ##   run_fc [--cmd=/sbin/init] <image>
