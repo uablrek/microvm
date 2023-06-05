@@ -35,7 +35,7 @@ findf() {
 }
 
 ##   env
-##     Print environment.
+##     Print environment
 cmd_env() {
 	test "$envread" = "yes" && return 0
 	envread=yes
@@ -60,8 +60,9 @@ cmd_env() {
 		test -n "$DISKIM" || log "WARNING: diskim not installed"
 	fi
 
+	test -n "$__rootfsar" ||  __rootfsar=alpine-minirootfs-3.18.0-x86_64.tar.gz
 	if test "$cmd" = "env"; then
-		local opts="kver|kcfg|kobj|kdir|fcver|kernel|ksetup|fccfg"
+		local opts="kver|kcfg|kobj|kdir|fcver|kernel|ksetup|fccfg|rootfsar"
 		set | grep -E "^(__($opts)|MICROVM_.*|ARCHIVE|DISKIM|fc)=" | sort
 		return 0
 	fi
@@ -72,12 +73,14 @@ cmd_env() {
 ##     is updated, or on initial setup
 cmd_setup() {
 	cmd_env
+	local ar
+
 	if test -n "$DISKIM"; then
 		log "Already installed [$DISKIM]"
 	else
 		local diskim_ver=1.0.0
 		log "Installing diskim $diskim_ver ..."
-		local ar=diskim-$diskim_ver.tar.xz
+		ar=diskim-$diskim_ver.tar.xz
 		if ! findf $ar; then
 			curl -L -o $ARCHIVE/$ar https://github.com/lgekman/diskim/releases/download/$diskim_ver/$ar || die "FAILED: Download diskim"
 			findf $ar || die "FAILED: diskim not found"
@@ -98,7 +101,7 @@ cmd_setup() {
 	if test -x $fc; then
 		log "Already installed [$fc]"
 	else
-		local ar=firecracker-$__fcver-x86_64.tgz
+		ar=firecracker-$__fcver-x86_64.tgz
 		log "Installing $ar ..."
 		if ! findf $ar; then
 			curl -L -o $ARCHIVE/$ar https://github.com/firecracker-microvm/firecracker/releases/download/$__fcver/$ar || die "FAILED: Download firecracker"
@@ -107,17 +110,37 @@ cmd_setup() {
 		tar -C $MICROVM_WORKSPACE -xf $f || die "FAILED: tar -xf $f"
 		test -x $fc || die "FAILED: Install firecracker"
 	fi
+
+	if findf $__rootfsar; then
+		log "Rootfs archive found [$__rootfsar]"
+	else
+		if echo $__rootfsar | grep -Fq alpine-minirootfs-3.18; then
+			curl -L -o $ARCHIVE/$__rootfsar \
+				https://dl-cdn.alpinelinux.org/alpine/v3.18/releases/x86_64/$__rootfsar \
+				|| die "Download [$__rootfsar]"
+		else
+			log "Please download Rootfs archive [$__rootfsar]"
+		fi
+	fi
 }
-##   docker_export <image>
-##     Like "docker export" but for an image
-cmd_docker_export() {
+##   kernel_build [--menuconfig]
+##     Build the microvm kernel
+cmd_kernel_build() {
+	cmd_env
+	export __kver __kdir __kcfg __kobj __kernel
+	$DISKIM kernel_build --menuconfig=$__menuconfig
+}
+##   mkimage [--size=2G] [--rootfsar=] <output-file> [ovls...]
+##     Create a disk image from a rootfs archive and optional overlays
+cmd_mkimage() {
+	cmd_env
 	test -n "$1" || die "Parameter missing"
-	docker image inspect $1 > /dev/null || die FAILED
-    local c=$(docker create $1 sh) || die "FAILED; docker create"
-    docker export $c
-    docker rm $c > /dev/null 2>&1
+	local image=$1
+	shift
+	findf $__rootfsar || die "Can's find rootfs archive [$__rootfsar]"
+	$DISKIM mkimage --size=$__size --format=raw --image=$image $f $@ || die FAILED
 }
-##   mktap [--bridge=] [--adr=] <tap>
+##   mktap [--bridge=] [--adr=] [--user=$USER] <tap>
 ##     Create a network tun/tap device.  The tun/tap device can
 ##     optionally be attached to a bridge. If "sudo" is required
 ##     you must specify "--user=$USER"
@@ -141,23 +164,6 @@ cmd_mktap() {
 		echo "$__adr" | grep -q : && opt=-6
 		ip $opt addr add $__adr dev $1 || die "Set address [$__adr]"
 	fi
-}
-##   kernel_build [--menuconfig]
-##     Build the microvm kernel
-cmd_kernel_build() {
-	cmd_env
-	export __kver __kdir __kcfg __kobj __kernel
-	$DISKIM kernel_build --menuconfig=$__menuconfig
-}
-##   mkimage [--size=2G] --docker-image=image <output-file>
-##     Create a disk image from a docker image
-cmd_mkimage() {
-	cmd_env
-	test -n "$1" || die "Parameter missing"
-	test -n "$__docker_image" || die "Missing --docker-image"
-	mkdir -p $tmp
-	cmd_docker_export $__docker_image > $tmp/image.tar
-	$DISKIM mkimage --size=$__size --format=raw --image=$1 $tmp/image.tar || die FAILED
 }
 ##   run_microvm [--init=/init] [--mem=128] [--tap=] <image>
 ##     Run a qemu microvm

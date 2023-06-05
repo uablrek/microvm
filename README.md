@@ -12,7 +12,7 @@ https://github.com/firecracker-microvm/firecracker) and
 
 ## Setup and the microvm.sh script
 
-Prerequisites: `docker`, `jq` and `kvm/qemu` are installed.
+Prerequisites: `jq` and `kvm/qemu` are installed.
 
 Most things are done using the `microvm.sh` script.
 ```
@@ -21,16 +21,17 @@ Most things are done using the `microvm.sh` script.
 ./microvm.sh setup  # Install items in $MICROVM_WORKSPACE
 ```
 
+
 ## Quick start
 
-The kernel must be built locally and we use an [Alpine Linux](
-https://www.alpinelinux.org/) image for this example. Images are built
-with [diskim]().
+The kernel must be built locally and an [Alpine Linux](
+https://www.alpinelinux.org/) rootfs is used by default. Images are built
+with [diskim](https://github.com/lgekman/diskim).
 
 ```
 ./microvm.sh kernel_build
-docker pull alpine:latest
-./microvm.sh mkimage --docker-image=alpine:latest /tmp/alpine.img
+./microvm.sh mkimage /tmp/alpine.img
+ls -slh /tmp/alpine.img   # This is a "sparse" file, not really 2G
 ./microvm.sh run_microvm --init=/bin/sh /tmp/alpine.img
 # (exit with ctrl-C)
 ./microvm.sh run_fc --init=/bin/sh /tmp/alpine.img
@@ -56,7 +57,16 @@ sudo ./microvm.sh mktap --user=$USER --adr=172.20.0.1/24 tap0
 ip link    # You should see a "lo" and "eth0" interface (both DOWN)
 ```
 
-This will *not* setup any networking in the guest.
+This will *not* setup any networking in the guest. You can do that
+manually.
+
+```
+# In the console:
+ip link set up eth0
+ip addr add 172.20.0.2/24 dev eth0
+ping -c1 -W1 172.20.0.1     # Ping the host
+```
+
 
 
 
