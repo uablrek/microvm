@@ -106,11 +106,11 @@ Executable file formats >
 Device Drivers >
   Character devices >
     Serial drivers >
-	  [*] 8250/16550 and compatible serial support
-	  [*]   Console on 8250/16550 and compatible serial port
+      [*] 8250/16550 and compatible serial support
+      [*]   Console on 8250/16550 and compatible serial port
   [*] Virtio drivers >
     [*]   Platform bus driver for memory mapped virtio devices
-	[*]     Memory mapped virtio devices parameter parsing
+    [*]     Memory mapped virtio devices parameter parsing
   Block devices >
     [*]   Virtio block driver  
 File systems >
