@@ -2,6 +2,8 @@
 mount -t sysfs sysfs /sys
 mount -t proc procfs /proc
 mdev -s
+mkdir /dev/pts
+mount -t devpts devpts /dev/pts
 passwd -d root
 exec /sbin/init
 
