@@ -187,8 +187,9 @@ cmd_run_microvm() {
 		opt="$opt -netdev tap,id=$__tap,script=no,ifname=$__tap"
 		opt="$opt -device virtio-net-device,netdev=$__tap,mac=$mac"
 	fi
-    exec qemu-system-x86_64-microvm -enable-kvm -M microvm,acpi=off \
-		-cpu host -nodefaults -no-user-config \
+    exec qemu-system-x86_64-microvm -enable-kvm \
+		-M microvm,acpi=off,x-option-roms=off,pit=off,pic=off,rtc=off \
+		-cpu host -nodefaults -no-user-config -nographic -no-reboot \
         -serial stdio -kernel $__kernel $opt \
         -append "console=ttyS0 root=/dev/vda init=$__init rw $__append"
 }
