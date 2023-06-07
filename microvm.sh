@@ -43,24 +43,20 @@ cmd_env() {
 	test -n "$MICROVM_WORKSPACE" || export MICROVM_WORKSPACE=$HOME/tmp/microvm
 	test -d "$MICROVM_WORKSPACE" || mkdir -p "$MICROVM_WORKSPACE"
 	test -n "$ARCHIVE" || export ARCHIVE=$HOME/Downloads
-	test -n "$__ksetup" || __ksetup=default
 	test -n "$__kver" || __kver=linux-6.3.4
     test -n "$__kdir" || __kdir=$MICROVM_WORKSPACE/$__kver
-	test -n "$__kcfg" || __kcfg=$dir/config/$__kver/$__ksetup
-	test -n "$__kernel" || __kernel=$MICROVM_WORKSPACE/bzImage-$__kver-$__ksetup
-	test -n "$__kobj" || __kobj=$MICROVM_WORKSPACE/obj-$__kver-$__ksetup
+	test -n "$__kcfg" || __kcfg=$dir/config/$__kver
+	test -n "$__kernel" || __kernel=$MICROVM_WORKSPACE/bzImage-$__kver
+	test -n "$__kobj" || __kobj=$MICROVM_WORKSPACE/obj-$__kver
 	test -n "$__fcver" || __fcver=v1.3.1
 	fc=$MICROVM_WORKSPACE/release-$__fcver-x86_64/firecracker-$__fcver-x86_64
-	if test -z "$__fccfg"; then
-		__fccfg=$dir/config/fc-$__ksetup
-		test -r $__fccfg || __fccfg=$dir/config/vm_config.json
-	fi
+	test -n "$__fccfg" || __fccfg=$dir/config/vm_config.json
+	test -n "$__rootfsar" ||  __rootfsar=alpine-minirootfs-3.18.0-x86_64.tar.gz
 	if test -z "$DISKIM"; then
 		DISKIM=$(find $MICROVM_WORKSPACE -name diskim.sh)
 		test -n "$DISKIM" || log "WARNING: diskim not installed"
 	fi
 
-	test -n "$__rootfsar" ||  __rootfsar=alpine-minirootfs-3.18.0-x86_64.tar.gz
 	if test "$cmd" = "env"; then
 		local opts="kver|kcfg|kobj|kdir|fcver|kernel|ksetup|fccfg|rootfsar"
 		set | grep -E "^(__($opts)|MICROVM_.*|ARCHIVE|DISKIM|fc)=" | sort
@@ -123,10 +119,17 @@ cmd_setup() {
 		fi
 	fi
 }
-##   kernel_build [--menuconfig]
+##   kernel_build [--menuconfig] [--tinyconfig]
 ##     Build the microvm kernel
 cmd_kernel_build() {
 	cmd_env
+	if test "$__tinyconfig" = "yes"; then
+		rm -r $__kobj
+		mkdir -p $__kobj $(dirname $__kcfg)
+		make -C $__kdir O=$__kobj tinyconfig
+		cp $__kobj/.config $__kcfg
+		__menuconfig=yes
+	fi
 	export __kver __kdir __kcfg __kobj __kernel
 	$DISKIM kernel_build --menuconfig=$__menuconfig
 }

@@ -86,7 +86,8 @@ This takes an Alpine rootfs (unmodified) and add the files under
 ## Minimum kernel config
 
 This section describes how to build a minimum kernel that can be used
-with `microvm`.
+with `microvm`. Read also about the [Linux Kernel Tinification project](
+https://tiny.wiki.kernel.org/start).
 
 ```
 builddir=/tmp/$USER/minivm
@@ -94,30 +95,29 @@ mkdir -p $builddir
 export __kcfg=$builddir/kernel.conf
 export __kobj=$builddir/obj
 export __kernel=$builddir/bzImage
-rm -f $__kcfg   # This ensures a build with an "all-no" config
-./microvm.sh kernel_build
+./microvm.sh kernel_build --tinyconfig  # (will clear the config)
 # just exit the kernel config and let it build
+ls -lh $__kernel    # (491K at the time of writing)
 ```
 
 You have now built an as small Linux kernel as possible. It is totally
 useless, but may be interresting for minimalists (like myself).
 
-```
-ls -lh $__kernel    # (1.4M at the time of writing)
-./microvm.sh kernel_build --menuconfig
-```
-
-The configuration described below is the bare minimum to get a rootfs
+The configuration described below is a minimum config to get a rootfs
 and a console.
 
 ```
-General setup >
+./microvm.sh kernel_build --menuconfig
+# Enter:
 [*] 64-bit kernel
+[*] Enable the block layer
 Executable file formats >
   [*] Kernel support for ELF binaries
   [*] Kernel support for scripts starting with #!
 Device Drivers >
   Character devices >
+    [*] Enable TTY
+	[ ] (unmark Virtual terminal and others)
     Serial drivers >
       [*] 8250/16550 and compatible serial support
       [*]   Console on 8250/16550 and compatible serial port
@@ -130,16 +130,32 @@ File systems >
   [*] The Extended 4 (ext4) filesystem
 ```
 
+Unmark unnecessary things.
+
+
 Test it:
 ```
-ls -lh $__kernel    # (1.9M at the time of writing)
-./microvm.sh run_microvm --mem=32 /tmp/alpine.img
+ls -lh $__kernel    # (856K at the time of writing)
+./microvm.sh run_microvm --mem=32 --init=/bin/sh /tmp/alpine.img
 # (exit with ctrl-C)
-./microvm.sh run_fc --mem=32 /tmp/alpine.img
-# (exit with "kill 1")
+./microvm.sh run_fc --mem=32 --init=/bin/sh /tmp/alpine.img
+# (exit with "exit")
 ```
 
-If you really want to learn about Linux kernel configuration, this is
-a good place to start IMHO. The `microvm` is very limited so soon you
-should add PCI bus support and use a more "normal" VM.
+If you *really* want to learn about Linux kernel configuration, this
+is a good place to start IMHO. Configure support for `procfs`, `sysfs`
+and multi-user to start without `--init=/bin/sh`, and take networking
+as an exercise.
+
+```
+General setup >
+  Configure standard kernel features (expert users) >
+    [*]   Multiple users, groups and capabilities support
+    [*]   Enable support for printk
+File systems >
+  Pseudo filesystems >
+    [*] /proc file system support
+	[*] sysfs file system support
+```
+
 
