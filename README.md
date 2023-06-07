@@ -104,7 +104,7 @@ You have now built an as small Linux kernel as possible. It is totally
 useless, but may be interresting for minimalists (like myself).
 
 The configuration described below is a minimum config to get a rootfs
-and a console.
+and a serial console.
 
 ```
 ./microvm.sh kernel_build --menuconfig
@@ -117,7 +117,7 @@ Executable file formats >
 Device Drivers >
   Character devices >
     [*] Enable TTY
-	[ ] (unmark Virtual terminal and others)
+    [ ] (unmark Virtual terminal and others)
     Serial drivers >
       [*] 8250/16550 and compatible serial support
       [*]   Console on 8250/16550 and compatible serial port
@@ -143,19 +143,22 @@ ls -lh $__kernel    # (856K at the time of writing)
 ```
 
 If you *really* want to learn about Linux kernel configuration, this
-is a good place to start IMHO. Configure support for `procfs`, `sysfs`
-and multi-user to start without `--init=/bin/sh`, and take networking
-as an exercise.
+is a good place to start IMHO. Configure support for `procfs`,
+`sysfs`, `kvmclock` and multi-user to start without
+`--init=/bin/sh`. Take networking as an exercise.
 
 ```
 General setup >
   Configure standard kernel features (expert users) >
     [*]   Multiple users, groups and capabilities support
     [*]   Enable support for printk
+Processor type and features >
+  [*] Linux guest support >
+    [*]   Enable paravirtualization code
+    [*]   KVM Guest support (including kvmclock)
 File systems >
   Pseudo filesystems >
     [*] /proc file system support
-	[*] sysfs file system support
+    [*] sysfs file system support
 ```
-
 
