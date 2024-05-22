@@ -7,7 +7,7 @@ A "microvm" is a very lightweight VM. From QEMU docs:
 This repo describes howto create `microvm` kernels and images
 compatible with [firecracker](
 https://github.com/firecracker-microvm/firecracker) and
-[qemu-microvm](https://qemu.readthedocs.io/en/latest/system/i386/microvm.html)
+[qemu-microvm](https://www.qemu.org/docs/master/system/i386/microvm.html)
 
 **NOTE:** Tested on `Ubuntu 24.04 LTS`. It may, or may not work on
 other distros. Please raise an issue to make other users aware of any problem,
