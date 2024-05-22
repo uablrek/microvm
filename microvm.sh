@@ -41,17 +41,16 @@ cmd_env() {
 	envread=yes
 
 	test -n "$MICROVM_WORKSPACE" || export MICROVM_WORKSPACE=$HOME/tmp/microvm
-	test -d "$MICROVM_WORKSPACE" || mkdir -p "$MICROVM_WORKSPACE"
 	test -n "$ARCHIVE" || export ARCHIVE=$HOME/Downloads
-	test -n "$__kver" || __kver=linux-6.3.4
+	test -n "$__kver" || __kver=linux-6.9.1
     test -n "$__kdir" || __kdir=$MICROVM_WORKSPACE/$__kver
 	test -n "$__kcfg" || __kcfg=$dir/config/$__kver
 	test -n "$__kernel" || __kernel=$MICROVM_WORKSPACE/bzImage-$__kver
 	test -n "$__kobj" || __kobj=$MICROVM_WORKSPACE/obj-$__kver
-	test -n "$__fcver" || __fcver=v1.3.1
+	test -n "$__fcver" || __fcver=v1.7.0
 	fc=$MICROVM_WORKSPACE/release-$__fcver-x86_64/firecracker-$__fcver-x86_64
 	test -n "$__fccfg" || __fccfg=$dir/config/vm_config.json
-	test -n "$__rootfsar" ||  __rootfsar=alpine-minirootfs-3.18.0-x86_64.tar.gz
+	test -n "$__rootfsar" ||  __rootfsar=alpine-minirootfs-3.19.1-x86_64.tar.gz
 	if test -z "$DISKIM"; then
 		DISKIM=$(find $MICROVM_WORKSPACE -name diskim.sh)
 		test -n "$DISKIM" || log "WARNING: diskim not installed"
@@ -60,15 +59,16 @@ cmd_env() {
 	if test "$cmd" = "env"; then
 		local opts="kver|kcfg|kobj|kdir|fcver|kernel|ksetup|fccfg|rootfsar"
 		set | grep -E "^(__($opts)|MICROVM_.*|ARCHIVE|DISKIM|fc)=" | sort
-		return 0
+		exit 0
 	fi
+
+	test -d "$MICROVM_WORKSPACE" || mkdir -p "$MICROVM_WORKSPACE"
 }
 ##   setup
 ##     The $MICROVM_WORKSPACE dir is used which defaults to
 ##     $HOME/tmp/microvm. This should be executed when diskim or the kernel
 ##     is updated, or on initial setup
 cmd_setup() {
-	cmd_env
 	local ar
 
 	if test -n "$DISKIM"; then
@@ -110,19 +110,12 @@ cmd_setup() {
 	if findf $__rootfsar; then
 		log "Rootfs archive found [$__rootfsar]"
 	else
-		if echo $__rootfsar | grep -Fq alpine-minirootfs-3.18; then
-			curl -L -o $ARCHIVE/$__rootfsar \
-				https://dl-cdn.alpinelinux.org/alpine/v3.18/releases/x86_64/$__rootfsar \
-				|| die "Download [$__rootfsar]"
-		else
-			log "Please download Rootfs archive [$__rootfsar]"
-		fi
+		die "Not found [$__rootfsar]. Download from https://dl-cdn.alpinelinux.org/alpine"
 	fi
 }
 ##   kernel_build [--menuconfig] [--tinyconfig]
 ##     Build the microvm kernel
 cmd_kernel_build() {
-	cmd_env
 	if test "$__tinyconfig" = "yes"; then
 		rm -r $__kobj
 		mkdir -p $__kobj $(dirname $__kcfg)
@@ -136,7 +129,6 @@ cmd_kernel_build() {
 ##   mkimage [--size=2G] [--rootfsar=] <output-file> [ovls...]
 ##     Create a disk image from a rootfs archive and optional overlays
 cmd_mkimage() {
-	cmd_env
 	test -n "$1" || die "Parameter missing"
 	local image=$1
 	shift
@@ -172,7 +164,6 @@ cmd_mktap() {
 ##   run_microvm [--init=/init] [--mem=128] [--tap=] <image>
 ##     Run a qemu microvm
 cmd_run_microvm() {
-	cmd_env
 	test -n "$1" || die "Parameter missing"
 	test -r "$1" || die "Not readable [$1]"
 	local image=$1
@@ -188,10 +179,10 @@ cmd_run_microvm() {
 		opt="$opt -device virtio-net-device,netdev=$__tap,mac=$mac"
 	fi
     exec qemu-system-x86_64-microvm -enable-kvm \
-		-M microvm,acpi=off,x-option-roms=off,pit=off,pic=off,rtc=off \
+		-M microvm,acpi=off,x-option-roms=off,pit=on,pic=off,rtc=off \
 		-cpu host -nodefaults -no-user-config -nographic -no-reboot \
         -serial stdio -kernel $__kernel $opt \
-        -append "console=ttyS0 root=/dev/vda init=$__init rw $__append"
+        -append "console=ttyS0 root=/dev/vda init=$__init rw reboot=t $__append"
 }
 setmac() {
 	local b0=$(echo $__tap | tr -dc '[0-9]')
@@ -205,7 +196,6 @@ setmac() {
 ##   run_fc [--init=/init] [--mem=128] [--tap=] <image>
 ##     Run a firecracker vm
 cmd_run_fc() {
-	cmd_env
 	test -n "$1" || die "Parameter missing"
 	test -r "$1" || die "Not readable [$1]"
 	local image=$1
@@ -259,6 +249,7 @@ long_opts=`set | grep '^__' | cut -d= -f1`
 
 # Execute command
 trap "die Interrupted" INT TERM
+cmd_env
 cmd_$cmd "$@"
 status=$?
 rm -rf $tmp

@@ -9,6 +9,10 @@ compatible with [firecracker](
 https://github.com/firecracker-microvm/firecracker) and
 [qemu-microvm](https://qemu.readthedocs.io/en/latest/system/i386/microvm.html)
 
+**NOTE:** Tested on `Ubuntu 24.04 LTS`. It may, or may not work on
+other distros. Please raise an issue to make other users aware of any problem,
+and please file a PR to fix the problem if possible.
+
 
 ## Setup and the microvm.sh script
 
@@ -75,7 +79,7 @@ that will be copied to your root file system. The `rootfsar` must be
 in `$HOME/Downloads` or `$ARCHIVE`.
 
 ```
-./microvm.sh mkimage --rootfsar=alpine-minirootfs-3.18.0-x86_64.tar.gz /tmp/alpine.img ./templates/alpine
+./microvm.sh mkimage --rootfsar=alpine-minirootfs-3.19.1-x86_64.tar.gz /tmp/alpine.img ./templates/alpine
 ```
 
 This takes an Alpine rootfs (unmodified) and add the files under
@@ -97,7 +101,7 @@ export __kobj=$builddir/obj
 export __kernel=$builddir/bzImage
 ./microvm.sh kernel_build --tinyconfig  # (will clear the config)
 # just exit the kernel config and let it build
-ls -lh $__kernel    # (491K at the time of writing)
+ls -lh $__kernel    # (521K for linux-6.9.1 at the time of writing)
 ```
 
 You have now built an as small Linux kernel as possible. It is totally
@@ -111,6 +115,8 @@ and a serial console.
 # Enter:
 [*] 64-bit kernel
 [*] Enable the block layer
+  Configure standard kernel features (expert users) >
+    [*]   Enable support for printk
 Executable file formats >
   [*] Kernel support for ELF binaries
   [*] Kernel support for scripts starting with #!
@@ -135,7 +141,7 @@ Unmark unnecessary things.
 
 Test it:
 ```
-ls -lh $__kernel    # (856K at the time of writing)
+ls -lh $__kernel    # (957K for linux-6.9.1 at the time of writing)
 ./microvm.sh run_microvm --mem=32 --init=/bin/sh /tmp/alpine.img
 # (exit with ctrl-C)
 ./microvm.sh run_fc --mem=32 --init=/bin/sh /tmp/alpine.img
@@ -145,13 +151,14 @@ ls -lh $__kernel    # (856K at the time of writing)
 If you *really* want to learn about Linux kernel configuration, this
 is a good place to start IMHO. Configure support for `procfs`,
 `sysfs`, `kvmclock` and multi-user to start without
-`--init=/bin/sh`. Take networking as an exercise.
+`--init=/bin/sh`.
 
 ```
+./microvm.sh kernel_build --menuconfig
+# Enter:
 General setup >
   Configure standard kernel features (expert users) >
     [*]   Multiple users, groups and capabilities support
-    [*]   Enable support for printk
 Processor type and features >
   [*] Linux guest support >
     [*]   Enable paravirtualization code
@@ -162,3 +169,68 @@ File systems >
     [*] sysfs file system support
 ```
 
+Test:
+```
+./microvm.sh run_microvm /tmp/alpine.img
+# (exit with ctrl-C)
+./microvm.sh run_fc /tmp/alpine.img
+# (exit with "kill 1")
+```
+
+### Networking
+
+```
+./microvm.sh kernel_build --menuconfig
+# Enter:
+[*] Networking support >
+  Networking options >
+    [*] Packet socket
+    [*] Unix domain sockets
+    [*] TCP/IP networking
+      [*] The IPv6 protocol (NEW)
+Device Drivers >
+  [*] Network device support >
+    [*] Virtio network driver
+  [ ] Ethernet driver support
+```
+
+NOTE: for some reason "Unix domain sockets" is required to make "ip" work!
+
+Test as described above.
+
+
+### Other things
+
+This is a *very* limited kernel. You must probably configure *a lot*
+more to get a kernel useful for you purpose. Here are some examples:
+
+```
+General setup >
+  [*] Control Group support
+    [*] Memory controller
+    [*]   CPU controller
+  [*] Namespaces support
+  Configure standard kernel features (expert users) >
+    [*] Posix Clocks & timers
+    [*] BUG() support 
+    [*] Enable futex support
+    [*] Enable eventpoll support
+Processor type and features >
+  [*] Symmetric multi-processing support
+Memory Management options >
+  [ ] Support for paging of anonymous memory (swap)
+Networking support >
+  Networking options >
+    [*] IP: multicasting 
+    [*] 802.1Q/802.1ad VLAN Support
+    [*] 802.1d Ethernet Bridging
+    [*] Network packet filtering framework (Netfilter) >
+      (whatever you need here...)
+Device Drivers >
+  Network device support >
+    [*] MAC-VLAN support
+    [*] IP-VLAN support
+    [*] Virtual eXtensible Local Area Network (VXLAN)
+    [*] Universal TUN/TAP device driver support
+    [*] Virtual ethernet pair device
+```
