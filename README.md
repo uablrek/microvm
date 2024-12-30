@@ -91,7 +91,7 @@ This takes an Alpine rootfs (unmodified) and add the files under
 
 This section describes how to build a minimum kernel that can be used
 with `microvm`. Read also about the [Linux Kernel Tinification project](
-https://tiny.wiki.kernel.org/start).
+https://archive.kernel.org/oldwiki/tiny.wiki.kernel.org/).
 
 ```
 builddir=/tmp/$USER/minivm
