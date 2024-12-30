@@ -114,9 +114,10 @@ and a serial console.
 ./microvm.sh kernel_build --menuconfig
 # Enter:
 [*] 64-bit kernel
-[*] Enable the block layer
+General setup >
   Configure standard kernel features (expert users) >
     [*]   Enable support for printk
+[*] Enable the block layer
 Executable file formats >
   [*] Kernel support for ELF binaries
   [*] Kernel support for scripts starting with #!
@@ -160,6 +161,7 @@ General setup >
   Configure standard kernel features (expert users) >
     [*]   Multiple users, groups and capabilities support
 Processor type and features >
+  [*] Symmetric multi-processing support
   [*] Linux guest support >
     [*]   Enable paravirtualization code
     [*]   KVM Guest support (including kvmclock)
