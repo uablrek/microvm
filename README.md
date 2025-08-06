@@ -87,7 +87,7 @@ that will be copied to your root file system. The `rootfsar` must be
 in `$HOME/Downloads` or `$ARCHIVE`.
 
 ```
-./microvm.sh mkimage --rootfsar=alpine-minirootfs-3.19.1-x86_64.tar.gz /tmp/alpine.img ./templates/alpine
+./microvm.sh mkimage --rootfsar=alpine-minirootfs-3.19.1-x86_64.tar.gz --image=/tmp/alpine.img ./templates/alpine
 ```
 
 This takes an Alpine rootfs (unmodified) and add the files under
@@ -106,10 +106,9 @@ builddir=/tmp/$USER/minivm
 mkdir -p $builddir
 export __kcfg=$builddir/kernel.conf
 export __kobj=$builddir/obj
-export __kernel=$builddir/bzImage
 ./microvm.sh kernel_build --tinyconfig  # (will clear the config)
 # just exit the kernel config and let it build
-ls -lh $__kernel    # (549K for linux-6.16.0 at the time of writing)
+ls -lh $__kobj/arch/x86/boot/bzImage # (549K for linux-6.16.0 at the time of writing)
 ```
 
 You have now built an as small Linux kernel as possible. It is totally
@@ -151,9 +150,9 @@ Unmark unnecessary things.
 Test it:
 ```
 ls -lh $__kernel    # (981K for linux-6.16.0 at the time of writing)
-./microvm.sh run_microvm --mem=32 --init=/bin/sh /tmp/alpine.img
+./microvm.sh run_microvm --mem=32 --init=/bin/sh
 # (exit with ctrl-C)
-./microvm.sh run_fc --mem=32 --init=/bin/sh /tmp/alpine.img
+./microvm.sh run_fc --mem=32 --init=/bin/sh
 # (exit with "exit")
 ```
 
@@ -243,4 +242,33 @@ Device Drivers >
     [*] Virtual eXtensible Local Area Network (VXLAN)
     [*] Universal TUN/TAP device driver support
     [*] Virtual ethernet pair device
+```
+
+## Document kernel configs
+
+To just store the configs works, but they are hard to get a grasp
+of. The Linux kernel is *huge* and it's hard to go through the
+menuconfig and try to figure out what's in there and why. Often you
+end up with an unnecessary large configuration.
+
+I have copied the menuconfig above, but that is tedious and error
+prone. Another way is to use the `scripts/config` script in the linux
+kernel. Example:
+
+```
+cd /path/to/kernel
+./scripts/config --enable 64BIT
+```
+
+To start with `tinyconfig` (`allnoconfig` actually configures *much*
+more) and document a series of `scripts/config` makes it easy for
+anyone to see what's configured and re-create the configuration. After
+configuring this way, you must run `menuconfig`, and just exit. This
+to let the kernel build system fill in dependencies.
+
+```
+export __kcfg=/tmp/kernel-test.cfg  # (or whatever)
+./microvm.sh kernel_build --tinyconfig # (just exit menuconfig)
+./microvm.sh kernel-config config/minimal.cfg config/multi-user.cfg config/network.cfg
+./microvm.sh kernel_build --menuconfig # (just exit)
 ```

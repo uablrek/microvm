@@ -63,6 +63,7 @@ cmd_env() {
 	WS=$MICROVM_WORKSPACE
 	__kdir=$WS/$ver_kernel			# (hard-code this for now)
 	eset \
+		WS='' \
 		ARCHIVE=$HOME/Downloads \
 		__kdir=$WS/$ver_kernel \
 		__kcfg=$dir/config/$ver_kernel \
@@ -80,8 +81,8 @@ cmd_env() {
 }
 ##   setup [--clean]
 ##     The $MICROVM_WORKSPACE dir is used which defaults to
-##     $HOME/tmp/microvm. This should be executed when diskim or the kernel
-##     is updated, or on initial setup
+##     /tmp/tmp/$USER/microvm. This should be executed when
+##     firecracker or the kernel is updated, or on initial setup
 cmd_setup() {
 	if test "$__clean" = "yes"; then
 		rm -rf $WS
@@ -135,6 +136,34 @@ cmd_kernel_build() {
 		cp $__kobj/.config $__kcfg
 	fi
 	make -j$(nproc) -C $__kdir O=$__kobj
+}
+##   kernel-config [--config=] [config-files...]
+##     Use the "scripts/config" script to alter the kernel-config
+cmd_kernel_config() {
+	eset __config=$__kcfg
+	test -r $__config || die "Not readable [$__config]"
+	local config="$__kdir/scripts/config --file $__config"
+	local cfile k v line
+	for cfile in $@; do
+		test -r "$cfile" || die "Not readable [$cfile]"
+		while read line; do
+			echo $line | grep -qE '^[A-Z0-9]' || continue
+			log $line
+			k=$(echo $line | cut -d= -f1)
+			v=$(echo $line | cut -d= -f2-)
+			if echo $v | grep -qE '^(y|n|m)$'; then
+				case $v in
+					y) $config --enable $k;;
+					n) $config --disable $k;;
+					m) $config --module $k;;
+				esac
+			elif echo $v | grep -qF '"'; then
+				$config --set-str $k "$(echo $v | tr -d '"')"
+			else
+				$config --set-val $k $v
+			fi
+		done < $cfile
+	done
 }
 ##   mkimage [--image=] [--size=2G] [--rootfsar=] [ovls...]
 ##     Create a disk image from a rootfs archive and optional overlays
