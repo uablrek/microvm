@@ -21,10 +21,17 @@ Prerequisites: `jq` and `kvm/qemu` are installed.
 Most things are done using the `microvm.sh` script.
 ```
 ./microvm.sh        # Help printout
-./microvm.sh env    # Print current environment
+./microvm.sh env    # Print current environment (check versions)
+# (download archives if needed)
 ./microvm.sh setup  # Install items in $MICROVM_WORKSPACE
 ```
 
+Download archives from:
+
+* https://kernel.org/
+* https://github.com/firecracker-microvm/firecracker/releases/
+* https://www.alpinelinux.org/downloads/
+* https://github.com/lgekman/diskim/releases
 
 ## Quick start
 
@@ -33,13 +40,14 @@ https://www.alpinelinux.org/) rootfs is used by default. Images are built
 with [diskim](https://github.com/lgekman/diskim).
 
 ```
+eval $(./microvm.sh env | grep __image) # (or; export __image=/path/to/rootfs.img
 ./microvm.sh kernel_build
-./microvm.sh mkimage /tmp/alpine.img ./templates/alpine
-ls -slh /tmp/alpine.img   # This is a "sparse" file, not really 2G
+./microvm.sh mkimage ./templates/alpine
+ls -slh $__image   # This is a "sparse" file, not really 2G
 # Start and login as "root" (no passwd)
-./microvm.sh run_microvm /tmp/alpine.img
+./microvm.sh run_microvm
 # (exit with ctrl-C)
-./microvm.sh run_fc /tmp/alpine.img
+./microvm.sh run_fc
 # (exit with "kill 1")
 ```
 
@@ -52,10 +60,10 @@ The tap device (and an optional bridge) must be created before the vm
 is started. Then the `--tap=` option can be specified to the run command.
 
 ```
-sudo ./microvm.sh mktap --user=$USER --adr=172.20.0.1/24 tap0
-./microvm.sh run_microvm --tap=tap0 /tmp/alpine.img
+./microvm.sh mktap --adr=172.20.0.1/24 tap0   # (requires sudo)
+./microvm.sh run_microvm --tap=tap0
 # Or:
-./microvm.sh run_fc --tap=tap0 /tmp/alpine.img
+./microvm.sh run_fc --tap=tap0
 # In the console
 ip link    # You should see a "lo" and "eth0" interface (both DOWN)
 ```
@@ -101,7 +109,7 @@ export __kobj=$builddir/obj
 export __kernel=$builddir/bzImage
 ./microvm.sh kernel_build --tinyconfig  # (will clear the config)
 # just exit the kernel config and let it build
-ls -lh $__kernel    # (521K for linux-6.9.1 at the time of writing)
+ls -lh $__kernel    # (549K for linux-6.16.0 at the time of writing)
 ```
 
 You have now built an as small Linux kernel as possible. It is totally
@@ -142,7 +150,7 @@ Unmark unnecessary things.
 
 Test it:
 ```
-ls -lh $__kernel    # (957K for linux-6.9.1 at the time of writing)
+ls -lh $__kernel    # (981K for linux-6.16.0 at the time of writing)
 ./microvm.sh run_microvm --mem=32 --init=/bin/sh /tmp/alpine.img
 # (exit with ctrl-C)
 ./microvm.sh run_fc --mem=32 --init=/bin/sh /tmp/alpine.img
@@ -173,9 +181,9 @@ File systems >
 
 Test:
 ```
-./microvm.sh run_microvm /tmp/alpine.img
+./microvm.sh run_microvm
 # (exit with ctrl-C)
-./microvm.sh run_fc /tmp/alpine.img
+./microvm.sh run_fc
 # (exit with "kill 1")
 ```
 

@@ -33,6 +33,19 @@ findf() {
 	f=$HOME/Downloads/$1
 	test -r $f
 }
+findar() {
+	findf $1.tar.bz2 || findf $1.tar.gz || findf $1.tar.xz || findf $1.tgz || findf $1.zip
+}
+# Set variables unless already defined
+eset() {
+	local e k
+	for e in $@; do
+		k=$(echo $e | cut -d= -f1)
+		opts="$opts|$k"
+		test -n "$(eval echo \$$k)" || eval $e
+		test "$(eval echo \$$k)" = "?" && eval $e
+	done
+}
 
 ##   env
 ##     Print environment
@@ -40,77 +53,68 @@ cmd_env() {
 	test "$envread" = "yes" && return 0
 	envread=yes
 
-	test -n "$MICROVM_WORKSPACE" || export MICROVM_WORKSPACE=$HOME/tmp/microvm
-	test -n "$ARCHIVE" || export ARCHIVE=$HOME/Downloads
-	test -n "$__kver" || __kver=linux-6.9.1
-    test -n "$__kdir" || __kdir=$MICROVM_WORKSPACE/$__kver
-	test -n "$__kcfg" || __kcfg=$dir/config/$__kver
-	test -n "$__kernel" || __kernel=$MICROVM_WORKSPACE/bzImage-$__kver
-	test -n "$__kobj" || __kobj=$MICROVM_WORKSPACE/obj-$__kver
-	test -n "$__fcver" || __fcver=v1.7.0
-	fc=$MICROVM_WORKSPACE/release-$__fcver-x86_64/firecracker-$__fcver-x86_64
-	test -n "$__fccfg" || __fccfg=$dir/config/vm_config.json
-	test -n "$__rootfsar" ||  __rootfsar=alpine-minirootfs-3.19.1-x86_64.tar.gz
-	if test -z "$DISKIM"; then
-		DISKIM=$(find $MICROVM_WORKSPACE -name diskim.sh)
-		test -n "$DISKIM" || log "WARNING: diskim not installed"
-	fi
-
+	eset \
+		MICROVM_WORKSPACE=/tmp/tmp/$USER/microvm \
+		ARCHIVE=$HOME/archive \
+		ver_kernel=linux-6.16 \
+		ver_fc=firecracker-v1.12.1-x86_64 \
+		ver_alpine=alpine-minirootfs-3.22.1-x86_64 \
+		ver_diskim=diskim-1.1.0
+	WS=$MICROVM_WORKSPACE
+	__kdir=$WS/$ver_kernel			# (hard-code this for now)
+	eset \
+		ARCHIVE=$HOME/Downloads \
+		__kdir=$WS/$ver_kernel \
+		__kcfg=$dir/config/$ver_kernel \
+		__kobj=$WS/obj/$ver_kernel \
+		__fccfg=$dir/config/vm_config.json \
+		__image=$WS/rootfs.img
+	eset __kernel=$__kobj/arch/x86/boot/bzImage
 	if test "$cmd" = "env"; then
-		local opts="kver|kcfg|kobj|kdir|fcver|kernel|ksetup|fccfg|rootfsar"
-		set | grep -E "^(__($opts)|MICROVM_.*|ARCHIVE|DISKIM|fc)=" | sort
+		set | grep -E "^($opts)="
 		exit 0
 	fi
 
-	test -d "$MICROVM_WORKSPACE" || mkdir -p "$MICROVM_WORKSPACE"
+	mkdir -p "$WS"
+	cd $dir
 }
-##   setup
+##   setup [--clean]
 ##     The $MICROVM_WORKSPACE dir is used which defaults to
 ##     $HOME/tmp/microvm. This should be executed when diskim or the kernel
 ##     is updated, or on initial setup
 cmd_setup() {
-	local ar
-
-	if test -n "$DISKIM"; then
-		log "Already installed [$DISKIM]"
-	else
-		local diskim_ver=1.0.0
-		log "Installing diskim $diskim_ver ..."
-		ar=diskim-$diskim_ver.tar.xz
-		if ! findf $ar; then
-			curl -L -o $ARCHIVE/$ar https://github.com/lgekman/diskim/releases/download/$diskim_ver/$ar || die "FAILED: Download diskim"
-			findf $ar || die "FAILED: diskim not found"
-		fi
-		tar -C $MICROVM_WORKSPACE -xf $f || die "FAILED: tar -xf $f"
-		DISKIM=$(find $MICROVM_WORKSPACE -name diskim.sh)
-		test -x $DISKIM || die "Not executable [$DISKIM]"
+	if test "$__clean" = "yes"; then
+		rm -rf $WS
+		mkdir -p $WS
 	fi
 
-	if test -d $__kdir; then
-		log "Already installed [$__kdir]"
-	else
-		export __kver __kdir
-		$DISKIM kernel_download || die "FAILED"
-		$DISKIM kernel_unpack  || die "FAILED"
+	local installed
+	if ! test -x "$diskim"; then
+		findar $ver_diskim || die "Not found [$ver_diskim]"
+		tar -C $WS -xf $f || die "tar -xf $f"
+		installed=$ver_diskim
 	fi
 
-	if test -x $fc; then
-		log "Already installed [$fc]"
-	else
-		ar=firecracker-$__fcver-x86_64.tgz
-		log "Installing $ar ..."
-		if ! findf $ar; then
-			curl -L -o $ARCHIVE/$ar https://github.com/firecracker-microvm/firecracker/releases/download/$__fcver/$ar || die "FAILED: Download firecracker"
-			findf $ar || die "FAILED: firecracker not found"
-		fi
-		tar -C $MICROVM_WORKSPACE -xf $f || die "FAILED: tar -xf $f"
-		test -x $fc || die "FAILED: Install firecracker"
+	if ! test -d $__kdir; then
+		findar $ver_kernel || die "Not found [$ver_kernel]"
+		xz -d -c -T0 $f | tar -C $WS -x || die "Unpack [$f]"
+		installed="$installed $ver_kernel"
 	fi
 
-	if findf $__rootfsar; then
-		log "Rootfs archive found [$__rootfsar]"
+	if ! test -d $WS/$ver_fc; then
+		findar $ver_fc || die "Not found [$ver_fc]"
+		tar -C $WS -xf $f || die "tar -xf $f"
+		# The fc dir is named "release-*" for some reason
+		local silly_name=$(echo $ver_fc | sed -e 's,firecracker-,release-,')
+		mv $WS/$silly_name $WS/$ver_fc
+		installed="$installed $ver_fc"
+	fi
+
+	findar $ver_alpine || log "WARNING: Not found [$ver_alpine]"
+	if test -n "$installed"; then
+		log "Installed: $installed"
 	else
-		die "Not found [$__rootfsar]. Download from https://dl-cdn.alpinelinux.org/alpine"
+		log "Everything setup already"
 	fi
 }
 ##   kernel_build [--menuconfig] [--tinyconfig]
@@ -123,23 +127,35 @@ cmd_kernel_build() {
 		cp $__kobj/.config $__kcfg
 		__menuconfig=yes
 	fi
-	export __kver __kdir __kcfg __kobj __kernel
-	$DISKIM kernel_build --menuconfig=$__menuconfig
+	test -r $__kcfg || die "Not readable [$__kcfg]"
+	mkdir -p $__kobj
+	cp $__kcfg $__kobj/.config
+	if test "$__menuconfig" = "yes"; then
+		make -C $__kdir O=$__kobj menuconfig || die menuconfig
+		cp $__kobj/.config $__kcfg
+	fi
+	make -j$(nproc) -C $__kdir O=$__kobj
 }
-##   mkimage [--size=2G] [--rootfsar=] <output-file> [ovls...]
+##   mkimage [--image=] [--size=2G] [--rootfsar=] [ovls...]
 ##     Create a disk image from a rootfs archive and optional overlays
 cmd_mkimage() {
-	test -n "$1" || die "Parameter missing"
-	local image=$1
-	shift
-	findf $__rootfsar || die "Can's find rootfs archive [$__rootfsar]"
+	if test -n "$__rootfsar"; then
+		test -r "$__rootfsar" || die "Not readable [$__rootfsar]"
+		f=$__rootfsar
+	else
+		findar $ver_alpine || die "Not found [$ver_alpine]"
+	fi
+	eset __size=2G
 	unset __kernel
-	$DISKIM mkimage --size=$__size --format=raw --image=$image $f $@ || die FAILED
+	export __image
+	local d=$WS/$ver_diskim
+	export DISKIM_WORKSPACE=$d/tmp # (due to a bug in diskim)
+	$d/diskim.sh mkimage --size=$__size --format=raw $f $@ || die diskim
 }
-##   mktap [--bridge=] [--adr=] [--user=$USER] <tap>
+##   mktap [--bridge=|--adr=] <tap>
 ##     Create a network tun/tap device.  The tun/tap device can
-##     optionally be attached to a bridge. If "sudo" is required
-##     you must specify "--user=$USER"
+##     optionally be attached to a bridge.
+##     Requires "sudo"!
 cmd_mktap() {
 	test -n "$1" || die "Parameter missing"
 	if ip link show dev $1 > /dev/null 2>&1; then
@@ -150,28 +166,22 @@ cmd_mktap() {
 		ip link show dev $__bridge > /dev/null 2>&1 \
 			|| die "Bridge does not exist [$__bridge]"
 	fi
-	test -n "$__user" || __user=$USER
-	ip tuntap add $1 mode tap user $__user || die "Create tap"
-	ip link set up $1
+	sudo ip tuntap add $1 mode tap user $USER || die "Create tap"
+	sudo ip link set up $1
 	if test -n "$__bridge"; then
-		ip link set dev $1 master $__bridge || die "Attach to bridge"
+		sudo ip link set dev $1 master $__bridge || die "Attach to bridge"
 	elif test -n "$__adr"; then
 		local opt
 		echo "$__adr" | grep -q : && opt=-6
-		ip $opt addr add $__adr dev $1 || die "Set address [$__adr]"
+		sudo ip $opt addr add $__adr dev $1 || die "Set address [$__adr]"
 	fi
 }
-##   run_microvm [--init=/init] [--mem=128] [--tap=] <image>
+##   run_microvm [--init=/init] [--mem=128] [--tap=] [--image=]
 ##     Run a qemu microvm
 cmd_run_microvm() {
-	test -n "$1" || die "Parameter missing"
-	test -r "$1" || die "Not readable [$1]"
-	local image=$1
-	shift
-	test -n "$__init" || __init=/init
-	test -n "$__mem" || __mem=128
+	eset __init=/init __mem=128
 	local opt="-smp 2 -k sv -m $__mem"
-    opt="$opt -drive file=$image,if=none,id=drive0,format=raw"
+    opt="$opt -drive file=$__image,if=none,id=drive0,format=raw"
     opt="$opt -device virtio-blk-device,drive=drive0"
 	if test -n "$__tap"; then
 		setmac
@@ -182,7 +192,7 @@ cmd_run_microvm() {
 		-M microvm,acpi=off,x-option-roms=off,pit=on,pic=off,rtc=off \
 		-cpu host -nodefaults -no-user-config -nographic -no-reboot \
         -serial stdio -kernel $__kernel $opt \
-        -append "console=ttyS0 root=/dev/vda init=$__init rw reboot=t $__append"
+        -append "console=ttyS0 root=/dev/vda init=$__init rw reboot=t $@"
 }
 setmac() {
 	local b0=$(echo $__tap | tr -dc '[0-9]')
@@ -193,17 +203,15 @@ setmac() {
 	fi
 	mac=00:00:00:01:00:$b0
 }
-##   run_fc [--init=/init] [--mem=128] [--tap=] <image>
+##   run_fc [--init=/init] [--mem=128] [--tap=] [--image=]
 ##     Run a firecracker vm
 cmd_run_fc() {
-	test -n "$1" || die "Parameter missing"
-	test -r "$1" || die "Not readable [$1]"
-	local image=$1
-	test -n "$__init" || __init=/init
-	test -n "$__mem" || __mem=128
+	local fc=$WS/$ver_fc/$ver_fc
+	test -x $fc || die "Not executable [$fc]"
+	eset __init=/init __mem=128
 	mkdir -p $tmp
 	local kernel=$__kobj/vmlinux
-	sed -e "s,vmlinux.bin,$kernel," -e "s,bionic.rootfs.ext4,$image," \
+	sed -e "s,vmlinux.bin,$kernel," -e "s,bionic.rootfs.ext4,$__image," \
 		-e "s,/init,$__init," \
 		-e "s,\"mem_size_mib\": 1024,\"mem_size_mib\": $__mem," \
 		< $__fccfg > $tmp/fc-config.json
@@ -225,7 +233,7 @@ EOF
 
 ##
 # Get the command
-cmd=$1
+cmd=$(echo $1 | tr -- - _)
 shift
 grep -q "^cmd_$cmd()" $0 $hook || die "Invalid command [$cmd]"
 
