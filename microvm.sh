@@ -63,6 +63,7 @@ cmd_env() {
 	WS=$MICROVM_WORKSPACE
 	__kdir=$WS/$ver_kernel			# (hard-code this for now)
 	eset \
+		kconfiglib='' \
 		WS='' \
 		ARCHIVE=$HOME/Downloads \
 		__kdir=$WS/$ver_kernel \
@@ -137,11 +138,16 @@ cmd_kernel_build() {
 	fi
 	make -j$(nproc) -C $__kdir O=$__kobj
 }
-##   kernel-config [--config=] [config-files...]
-##     Use the "scripts/config" script to alter the kernel-config
+##   kernel-config [--config=] [--kconfiglib] [config-files...]
+##     Use the "scripts/config" script, or "kconfiglib", to alter the
+##     kernel-config
 cmd_kernel_config() {
 	eset __config=$__kcfg
 	test -r $__config || die "Not readable [$__config]"
+	if test "$__kconfiglib" = "yes"; then
+		kernel_config_kconfiglib $@
+		return
+	fi
 	local config="$__kdir/scripts/config --file $__config"
 	local cfile k v line
 	for cfile in $@; do
@@ -163,6 +169,19 @@ cmd_kernel_config() {
 				$config --set-val $k $v
 			fi
 		done < $cfile
+	done
+}
+kernel_config_kconfiglib() {
+	test -n "$kconfiglib" || die 'Not set [$kconfiglib]'
+	test -r $kconfiglib/kconfiglib.py || \
+		die "Not readable [$kconfiglib/kconfiglib.py]"
+	export PYTHONPATH=$kconfiglib
+	local opts cfile
+	for cfile in $@; do
+		opts=$(grep -E '^[A-Z0-9]' $cfile | tr -d '"')
+		SRCARCH=x86 ARCH=x86 CC=gcc LD=ld srctree=$__kdir \
+			KERNELVERSION=$ver_kernel KCONFIG_CONFIG=$__config \
+			$kconfiglib/setconfig.py $opts || die "kconfiglib"
 	done
 }
 ##   mkimage [--image=] [--size=2G] [--rootfsar=] [ovls...]

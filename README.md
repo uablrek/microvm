@@ -272,3 +272,8 @@ export __kcfg=/tmp/kernel-test.cfg  # (or whatever)
 ./microvm.sh kernel-config config/minimal.cfg config/multi-user.cfg config/network.cfg
 ./microvm.sh kernel_build --menuconfig # (just exit)
 ```
+
+An alternative to `scripts/config` is [Kconfiglib](
+https://github.com/zephyrproject-rtos/Kconfiglib). You can clone it,
+set `$kconfiglib` to point at the clone, and use `--kconfiglib` to try
+it.
